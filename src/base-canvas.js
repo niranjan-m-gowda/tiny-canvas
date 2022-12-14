@@ -1,6 +1,5 @@
-import { LitElement, html, css as css } from 'lit';
-import { KalmanFilter } from 'kalman-filter';
-import { isPenCustomizationsSupported } from './utils.js'
+import { LitElement, html, css as css } from 'lit-element';
+import KalmanFilter from 'kalman-filter/lib/kalman-filter';
 
 export class BaseCanvas extends LitElement {
   static styles = css`
@@ -30,13 +29,12 @@ export class BaseCanvas extends LitElement {
              desynchronized : {type: Boolean, reflectToAttribute: true, attribute: true},
              renderer: {type: Object, reflectToAttribute: true, attribute: true},
              pointerRawUpdate : {type: Boolean, reflectToAttribute: true, attribute: true},
-             currentLineColor : {type: String, reflectToAttribute: true, attribute: true},
-             currentLineStyle : {type: String, reflectToAttribute: true, attribute: true},
+             currentColor : {type: String, reflectToAttribute: true, attribute: true},
              currentLineWidth : {type: String, reflectToAttribute: true, attribute: true},
              drawCoalescedEvents : {type: Boolean, reflectToAttribute: true, attribute: true},
              drawPointsOnly : {type: Boolean, reflectToAttribute: true, attribute: true},
              drawPredictedEvents : {type: Boolean, reflectToAttribute: true, attribute: true},
-             drawWithCustomizations : {type: Boolean, reflectToAttribute: true, attribute: true},
+             drawWithPreferredFeatures : {type: Boolean, reflectToAttribute: true, attribute: true},
              drawWithPressure : {type: Boolean, reflectToAttribute: true, attribute: true},
              highlightPredictedEvents : {type: Boolean, reflectToAttribute: true, attribute: true},
              numOfPredictionPoints : {type: Number, reflectToAttribute: true, attribute: true}};
@@ -80,17 +78,16 @@ export class BaseCanvas extends LitElement {
     this.requestUpdate('renderer', oldRenderer);
 
     if (this._renderer) {
-      this._renderer.currentLineColor = this._currentLineColor;
-      this._renderer.currentLineStyle = this._currentLineStyle;
+      this._renderer.currentColor = this._currentColor;
       this._renderer.currentLineWidth = this._currentLineWidth;
       this._renderer.drawCoalescedEvents = this._drawCoalescedEvents;
       this._renderer.drawPointsOnly = this._drawPointsOnly;
       this._renderer.drawPredictedEvents = this._drawPredictedEvents;
-      this._renderer.drawWithCustomizations = this._drawWithCustomizations;
+      this._renderer.drawWithPreferredFeatures = this._drawWithPreferredFeatures;
       this._renderer.drawWithPressure = this._drawWithPressure;
       this._renderer.highlightPredictedEvents = this._highlightPredictedEvents;
       this._renderer.predictionType = this._predictionType;
-      this._renderer.numOfPredictionPoints = this._numOfPredictionPoints;
+      this._renderer.numOfPredictionPoints = this_numOfPredictionPoints;
     }
   }
 
@@ -116,26 +113,16 @@ export class BaseCanvas extends LitElement {
 
   get pointerRawUpdate() { return this._pointerRawUpdate; }
 
-  set currentLineColor(currentLineColor) {
-    let oldCurrentLineColor = this._currentLineColor;
-    this._currentLineColor = currentLineColor;
+  set currentColor(currentColor) {
+    let oldCurrentColor = this._currentColor;
+    this._currentColor = currentColor;
     if (this._renderer) {
-      this._renderer.currentLineColor = currentLineColor;
+      this._renderer.currentColor = currentColor;
     }
-    this.requestUpdate('currentLineColor', oldCurrentLineColor);
+    this.requestUpdate('currentColor', oldCurrentColor);
   }
 
-  get currentLineColor() { return this._currentLineColor; }
-
-  set currentLineStyle(currentLineStyle) {
-    let oldCurrentLineStyle = this._currentLineStyle;
-    this._currentLineStyle = currentLineStyle;
-    if (this._renderer)
-      this._renderer.currentLineStyle = currentLineStyle;
-    this.requestUpdate('currentLineStyle', oldCurrentLineStyle);
-  }
-
-  get currentLineStyle() { return this._currentLineStyle; }
+  get currentColor() { return this._currentColor; }
 
   set currentLineWidth(currentLineWidth) {
     let oldCurrentLineWidth = this._currentLineWidth;
@@ -177,15 +164,15 @@ export class BaseCanvas extends LitElement {
 
   get drawPredictedEvents() { return this._drawPredictedEvents; }
 
-  set drawWithCustomizations(drawWithCustomizations) {
-    let oldDrawWithCustomizations = this._drawWithCustomizations;
-    this._drawWithCustomizations = drawWithCustomizations;
+  set drawWithPreferredFeatures(drawWithPreferredFeatures) {
+    let oldDrawWithPreferredFeatures = this._drawWithPreferredFeatures;
+    this._drawWithPreferredFeatures = drawWithPreferredFeatures;
     if (this._renderer)
-      this._renderer.drawWithCustomizations = drawWithCustomizations;
-    this.requestUpdate('drawWithCustomizations', oldDrawWithCustomizations);
+      this._renderer.drawWithPreferredFeatures = drawWithPreferredFeatures;
+    this.requestUpdate('drawWithPreferredFeatures', oldDrawWithPreferredFeatures);
   }
 
-  get drawWithCustomizations() { return this._drawWithCustomizations; }
+  get drawWithPreferredFeatures() { return this._drawWithPreferredFeatures; }
 
   set drawWithPressure(drawWithPressure) {
     let oldDrawWithPressure = this._drawWithPressure;
@@ -272,13 +259,12 @@ export class BaseCanvas extends LitElement {
     this._pointerDown = false;
 
     // renderer-specific properties
-    this._currentLineColor = '#000000';
-    this._currentLineStyle = 'INK';
+    this._currentColor = '#000000';
     this._currentLineWidth = 1;
     this._drawCoalescedEvents = false;
     this._drawPointsOnly = false;
     this._drawPredictedEvents = false;
-    this._drawWithCustomizations = false;
+    this._drawWithPreferredFeatures = false;
     this._drawWithPressure = false;
     this._highlightPredictedEvents = false;
     this._predictionType = 'custom';
@@ -310,33 +296,6 @@ export class BaseCanvas extends LitElement {
     this._draw();
   }
 
-  _fetchPenCustomizations = async (event) => {
-    if (this.drawWithCustomizations && isPenCustomizationsSupported()) {
-      let preferredColorRead = await event.penCustomizationsDetails.getPreferredInkingColor();
-      let preferredStyleRead = await event.penCustomizationsDetails.getPreferredInkingStyle();
-      let preferredWidthRead = await event.penCustomizationsDetails.getPreferredInkingWidth();
-      preferredStyleRead = preferredStyleRead.toLowerCase();
-
-      if (preferredColorRead != this.currentPreferredColor ||
-        preferredWidthRead != this.currentPreferredWidth ||
-        preferredStyleRead != this.currentPreferredStyle) {
-          let event = new CustomEvent('customizations-changed', {
-            detail: { currentPreferredColor: preferredColorRead,
-                      currentPreferredWidth: preferredWidthRead,
-                      currentPreferredStyle: preferredStyleRead,
-                    },
-            bubbles: true,
-            composed: true
-          });
-          this.dispatchEvent(event);
-        }
-      this.currentPreferredColor = preferredColorRead;
-      this.currentPreferredWidth = preferredWidthRead;
-      this.currentPreferredStyle = preferredStyleRead;
-    }
-    return Promise.resolve();
-  }
-
   _onPointerDown = async (event) => {
     if(this._pointerDown && event.pointerId !== this._pointerId)
       return;
@@ -344,10 +303,9 @@ export class BaseCanvas extends LitElement {
     this._app.currentEvent = event;
     this._pointerDown = true;
     this._pointerId = event.pointerId;
-    await this._fetchPenCustomizations(event);
-    let point = this._getPoint(event);
-    this._renderer.beginPath(point);
+    this._renderer.beginPath(this._getPoint(event));
     this._draw();
+    event.preventDefault();
   }
 
   _onPointerMove = async (event) => {
@@ -402,9 +360,6 @@ export class BaseCanvas extends LitElement {
       this.paths = this._renderer.paths;
       this._pointerDown = false;
       this._pointerId = null;
-      this._currentPreferredColor = null;
-      this._currentPreferredWidth = null;
-      this._currentPreferredStyle = null;
       this._resetPrediction();
     }
   }
@@ -423,7 +378,7 @@ export class BaseCanvas extends LitElement {
   _getPrediction(event) {
     let predictedPoints = [];
 
-    if (this._predictionType === 'browser' && event.getPredictedEvents) {
+    if (this._predictionType === 'chrome' && event.getPredictedEvents) {
       // use Chrome's built-in prediction
       for (let e of event.getPredictedEvents())
         predictedPoints.push(this._getPoint(e));
@@ -455,7 +410,7 @@ export class BaseCanvas extends LitElement {
     let current = null;
 
     for (let e of points) {
-      current = this._getPoint(e);
+      current = e;
       if (current.timeStamp === previous.timeStamp)
         break;
 
@@ -504,8 +459,8 @@ export class BaseCanvas extends LitElement {
         x: current.x + vX * timeDelta * i,
         y: current.y + vY * timeDelta * i,
         pressure: event.pressure,
-        lineColor: this._currentLineColor,
-        lineStyle: this._currentLineStyle,
+        preferredColor: event.preferredColor,
+        color: this._currentColor,
         lineWidth: this._currentLineWidth
       };
       predictedPoints.push(point);
@@ -527,18 +482,14 @@ export class BaseCanvas extends LitElement {
 
   // return a simplified version of the event for ease of serialization to worker
   _getPoint(event) {
-    const rect = this._canvas.getBoundingClientRect();
     return {
       timeStamp: event.timeStamp,
       type: event.type,
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
+      x: event.clientX,
+      y: event.clientY,
       pressure: event.pressure,
-      preferredColor: this._currentPreferredColor,
-      preferredStyle: this._currentPreferredStyle,
-      preferredWidth: this._currentPreferredWidth,
-      lineColor: this._currentLineColor,
-      lineStyle: this._currentLineStyle,
+      preferredColor: event.preferredColor,
+      color: this._currentColor,
       lineWidth: this._currentLineWidth
     };
   }

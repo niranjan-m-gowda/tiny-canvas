@@ -1,4 +1,4 @@
-import { LitElement, html, css as css } from 'lit';
+import { LitElement, html, css as css } from 'lit-element';
 import '@material/mwc-dialog';
 
 export class USIDialog extends LitElement {

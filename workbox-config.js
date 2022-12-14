@@ -1,11 +1,12 @@
 module.exports = {
-  "globDirectory": "docs",
-  "inlineWorkboxRuntime": true,
+  "globDirectory": "build",
+  "inlineWorkboxRuntime": "true",
   "globPatterns": [
     "**/*.{ico,html,css}",
-    "assets/*.js"
+    "web_modules/import-map.json",
+    "dist/*.js"
   ],
-  "swDest": "docs/sw.js",
+  "swDest": "build/sw.js",
 
   // Define runtime caching rules.
   runtimeCaching: [{

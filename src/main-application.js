@@ -1,32 +1,20 @@
-import { LitElement, html, css as css } from 'lit';
+import { LitElement, html, css as css } from 'lit-element';
 import { Workbox, messageSW} from 'workbox-window';
-import '@shoelace-style/shoelace/dist/themes/light.css';
-import '@shoelace-style/shoelace/dist/components/drawer/drawer.js';
-import '@shoelace-style/shoelace/dist/components/icon/icon.js';
-import '@shoelace-style/shoelace/dist/components/tooltip/tooltip.js';
-import '@shoelace-style/shoelace/dist/components/button/button.js';
-import '@shoelace-style/shoelace/dist/components/button-group/button-group.js';
-import '@shoelace-style/shoelace/dist/components/icon-button/icon-button.js';
-import '@shoelace-style/shoelace/dist/components/alert/alert.js';
+import '@material/mwc-drawer';
+import '@material/mwc-icon-button';
+import '@material/mwc-snackbar';
+import '@material/mwc-top-app-bar';
 import './info-panel.js';
 import './js-canvas.js';         // Canvas2D JS implementation
 import './pathkit-canvas.js';    // Canvas2D + PathKit implementation
-import './settings-dialog.js';
 import './toolbar.js';
 import './usi-dialog.js';
-import { DataSamples } from './utils.js';
-import { setBasePath } from '@shoelace-style/shoelace/dist/utilities/base-path.js';
-setBasePath('/tiny-canvas/');
 
 export class MainApplication extends LitElement {
   static styles = css`
     :host {
       width: 100vw;
       height: 100vh;
-      font-family: var(--sl-input-font-family);
-      font-size: var(--sl-input-font-size-medium);
-      font-weight: var(--sl-input-font-weight);
-      color: var(--sl-input-color);
     }
 
     *,
@@ -37,9 +25,25 @@ export class MainApplication extends LitElement {
       box-sizing: inherit;
     }
 
+    mwc-snackbar {
+      --mdc-snackbar-action-color: #2d89ef;
+    }
+
+    mwc-drawer {
+      --mdc-drawer-width: 384px;
+    }
+
     .drawer-content {
       width: 100%;
       height: 80vh;
+    }
+
+    .header {
+      text-align: center;
+      width: 100%;
+      font-size: 1.5em;
+      height: 30px;
+      font-weight: bold;
     }
 
     tiny-toolbar {
@@ -48,93 +52,25 @@ export class MainApplication extends LitElement {
     }
 
     js-canvas, pathkit-canvas {
-      width: 100%;
-      height: 100%;
+      position: absolute;
+      top: 0px;
+      left: 0px;
+      width: 100vw;
+      height: 100vh;
     }
 
     info-panel {
-      position: absolute;
-      top: 5vh;
-      right: 20px;
+      position: relative;
+      top: 20px;
+      left: 20px;
+      width: 250px;
+      height: 400px;
     }
 
-    .main-content {
-      display: flex;
-      flex-direction: column;
-      justify-content: space-evenly;
-      height: 100%;
-      width: 100%;
-    }
-
-    .button-group-toolbar {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      height: 5vh;
-      justify-content: space-evenly;
-      padding-left: 5px;
-      padding-right: 5px;
-      background-color: #313030;
-      border: solid 1px #202020;
-    }
-    
-    .button-group-toolbar sl-button-group:not(:last-of-type) {
-      margin-right: var(--sl-spacing-x-small);
-    }
-
-    #background-canvas {
-      background-color: #313030;
-      width: 100vw;
-      height: 95vh;
-      display: flex;
-    }
-
-    #main-canvas {
-      height: 95vh;
-      display: flex;
-      background-color: white;
-      flex-grow: 1;
-    }
-
-    drawing-toolbar {
-      height: 95vh;
-      flex-basis: 50px;
-      flex-grow: 0;
-      flex-shrink: 0;
-    }
-
-    .title {
-      flex-grow: 2;
-      font-size: 2em;
-      text-align: left;
-      font-family: 'Dancing Script';
-      color: #cbcbcb;
-    }
-
-    sl-button.button::part(base) {
-      background-color: #525151;
-      border-color: #000000;
-      color: #a2a2a2;
-    }
-
-    sl-button:not([disabled]).button::part(base):hover {
-      color: #ececec;
-      border-color:#ececec;
-    }
-
-    .alert-sw {
-      position: absolute;
-      bottom: 3vh;
-      left: 1vw;
-      z-index: 5;
-    }
-
-    .text-sw {
-      padding-bottom: 10px;
-    }
-
-    .reload {
-      margin-left: 5px;
+    info-panel:hover {
+      cursor: pointer;
+      border-style: solid;
+      border-color: lightgrey;
     }
   `;
 
@@ -149,18 +85,36 @@ export class MainApplication extends LitElement {
   get currentEvent() { return this._currentEvent; }
 
   firstUpdated() {
-    const settingsButton = this.shadowRoot.querySelector('#settings-button');
-    const settingsDialog = this.shadowRoot.querySelector('#settings-dialog');
-    settingsButton.addEventListener('click', () => settingsDialog.show());
+    this._drawer = this.shadowRoot.querySelector('#drawer');
+    if (this._drawer) {
+        const container = this._drawer.parentNode;
+        container.addEventListener('MDCTopAppBar:nav', () => {
+            this._drawer.open = !this._drawer.open;
+        });
+    }
 
-    this._swAlert = this.shadowRoot.querySelector('#sw-alert');
+    this._snackbar = this.shadowRoot.querySelector('#snackbar');
+    this._snackbar.addEventListener('MDCSnackbar:closed', event => {
+      if (event.detail.reason === "action") {
+        this._wb.addEventListener('controlling', () => {
+          window.location.reload();
+          this._wbRegistration = undefined;
+        });
+        // Send a message to the waiting service worker instructing
+        // it to skip waiting, which will trigger the `controlling`
+        // event listener above.
+        if (this._wbRegistration && this._wbRegistration.waiting) {
+          messageSW(this._wbRegistration.waiting, {type: 'SKIP_WAITING'})
+        }
+      }
+    });
     // Check that service workers are supported
     if ('serviceWorker' in navigator) {
       // Use the window load event to keep the page load performant
       window.addEventListener('load', async () => {
         this._wb = new Workbox('./sw.js');
-        this._wb.addEventListener('waiting', () => this._showSWAlert());
-        this._wb.addEventListener('externalwaiting', () => this._showSWAlert());
+        this._wb.addEventListener('waiting', () => this._showSnackbar());
+        this._wb.addEventListener('externalwaiting', () => this._showSnackbar());
         this._wbRegistration = await this._wb.register();
       });
     }
@@ -184,8 +138,6 @@ export class MainApplication extends LitElement {
     this._infoPanel.onpointerdown = this._onDragStart.bind(this);
     this._infoPanel.onpointermove = this._onDrag.bind(this);
     this._infoPanel.onpointerup = this._onDragEnd.bind(this);
-
-    this._toolbar = this.shadowRoot.querySelector('#toolbar');
   }
 
   constructor() {
@@ -205,21 +157,8 @@ export class MainApplication extends LitElement {
     this._pointerLatencySamples = new DataSamples(60);
   }
 
-  _showSWAlert() {
-    this._swAlert.show();
-  }
-
-  _reloadSW() {
-    this._wb.addEventListener('controlling', () => {
-      window.location.reload();
-      this._wbRegistration = undefined;
-    });
-    // Send a message to the waiting service worker instructing
-    // it to skip waiting, which will trigger the `controlling`
-    // event listener above.
-    if (this._wbRegistration && this._wbRegistration.waiting) {
-      messageSW(this._wbRegistration.waiting, {type: 'SKIP_WAITING'})
-    }
+  _showSnackbar() {
+    this._snackbar.show();
   }
 
   _toggleInfoPanel() {
@@ -288,7 +227,7 @@ export class MainApplication extends LitElement {
   _onIdle() {
     this._isIdle = true;
     this._pointerLatencySamples.clear();
-    //this._infoPanel.avgLatency = 0;
+    this._infoPanel.avgLatency = 0;
   }
 
   _updateInfoPanel(event) {
@@ -301,19 +240,15 @@ export class MainApplication extends LitElement {
     this._infoPanel.positionX = this._roundDecimal(event.x, 4);
     this._infoPanel.positionY = this._roundDecimal(event.y, 4);
     if (typeof event.penCustomizationsDetails !== 'undefined') {
-      try {
-        event.penCustomizationsDetails.getPreferredInkingColor().then((color) => {
-          this._infoPanel.preferredColor = color;
-        });
-        event.penCustomizationsDetails.getPreferredInkingStyle().then((style) => {
-          this._infoPanel.preferredStyle = style;
-        });
-        event.penCustomizationsDetails.getPreferredInkingWidth().then((width) => {
-          this._infoPanel.preferredWidth = width;
-        });
-      } catch (error) {
-        this._infoPanel.preferredColor = this._infoPanel.preferredWidth = this._infoPanel.preferredWidth = 'unavailable';
-      }
+      event.penCustomizationsDetails.getPreferredInkingColor().then((color) => {
+        this._infoPanel.preferredColor = color;
+      });
+      event.penCustomizationsDetails.getPreferredInkingStyle().then((style) => {
+        this._infoPanel.preferredStyle = style;
+      });
+      event.penCustomizationsDetails.getPreferredInkingWidth().then((width) => {
+        this._infoPanel.preferredWidth = width;
+      });
     }
     this._infoPanel.pressure = this._roundDecimal(event.pressure, 4);
     this._infoPanel.tangentialPressure = this._roundDecimal(event.tangentialPressure, 4);
@@ -335,13 +270,12 @@ export class MainApplication extends LitElement {
     let newCanvas = document.createElement(renderingType);
 
     if (this._mainCanvas) {
-      newCanvas.currentLineColor = this._mainCanvas.currentLineColor;
-      newCanvas.currentLineStye = this._mainCanvas.currentLineStyle;
+      newCanvas.currentColor = this._mainCanvas.currentColor;
       newCanvas.currentLineWidth = this._mainCanvas.currentLineWidth;
       newCanvas.drawCoalescedEvents = this._mainCanvas.drawCoalescedEvents;
       newCanvas.drawPointsOnly = this._mainCanvas.drawPointsOnly;
       newCanvas.drawPredictedEvents = this._mainCanvas.drawPredictedEvents;
-      newCanvas.drawWithCustomizations = this._mainCanvas.drawWithCustomizations;
+      newCanvas.drawWithPreferredFeatures = this._mainCanvas.drawWithPreferredFeatures;
       newCanvas.drawWithPressure = this._mainCanvas.drawWithPressure;
       newCanvas.highlightPredictedEvents = this._mainCanvas.highlightPredictedEvents;
       newCanvas.numOfPredictionPoints = this._mainCanvas.numOfPredictionPoints;
@@ -367,20 +301,17 @@ export class MainApplication extends LitElement {
     }
   }
 
-  _lineColorChanged(event) {
-    this._mainCanvas.currentLineColor = event.detail.lineColor;
-  }
-
-  _lineStyleChanged(event) {
-    this._mainCanvas.currentLineStyle = event.detail.lineStyle;
+  _colorChanged(event) {
+    this._mainCanvas.currentColor = event.detail.color;
+    this._mainCanvas.drawWithPreferredFeatures = false;
   }
 
   _lineWidthChanged(event) {
     this._mainCanvas.currentLineWidth = event.detail.lineWidth;
   }
 
-  _drawWithCustomizationsChanged(event) {
-    this._mainCanvas.drawWithCustomizations = event.detail.drawWithCustomizations;
+  _drawWithPreferredFeaturesChanged(event) {
+    this._mainCanvas.drawWithPreferredFeatures = event.detail.drawWithPreferredFeatures;
   }
 
   _pointerRawUpdateEnabledChanged(event) {
@@ -424,91 +355,52 @@ export class MainApplication extends LitElement {
     if (paths.length === 0) {
       this._undoButton.disabled = true;
       this._redoButton.disabled = true;
-      this._redoButton.closest('sl-tooltip').disabled = true;
-      this._undoButton.closest('sl-tooltip').disabled = true;
     } else {
       this._undoButton.disabled = !paths[0].display ? true : false;
       this._redoButton.disabled = paths[paths.length-1].display ? true : false;
-      this._undoButton.closest('sl-tooltip').disabled = this._undoButton.disabled;
-      this._redoButton.closest('sl-tooltip').disabled = this._redoButton.disabled;
     }
-  }
-
-  _customizationsChanged(event) {
-    this._toolbar.currentLineColor = event.detail.currentPreferredColor;
-    this._toolbar.currentLineStyle = event.detail.currentPreferredStyle;
-    this._toolbar.currentLineWidth = event.detail.currentPreferredWidth;
   }
 
   render() {
     return html`
-      <div class="main-content">
-        <div class="button-group-toolbar">
-          <div class="title">Tiny Canvas</div>
-          <sl-button-group label="History">
-            <sl-tooltip content="Undo">
-              <sl-button id="undo-button" class="button">
-                <sl-icon name="arrow-counterclockwise" label="Undo"></sl-icon>
-              </sl-button>
-            </sl-tooltip>
-            <sl-tooltip content="Redo">
-              <sl-button id="redo-button" class="button">
-                <sl-icon name="arrow-clockwise" label="Redo"></sl-icon>
-              </sl-button>
-            </sl-tooltip>
-            <sl-tooltip content="Clear Drawing">
-              <sl-button id="delete-button" class="button">
-                <sl-icon name="x-circle" label="Clear Canvas"></sl-icon>
-              </sl-button>
-            </sl-tooltip>
-          </sl-button-group>
-          <sl-button-group label="Misc">
-          <sl-tooltip content="Events Debug Panel">
-            <sl-button id="info-button" class="button">
-              <sl-icon name="info-circle" label="Pointer Events Information"></sl-icon>
-            </sl-button>
-          </sl-tooltip>
-          <sl-tooltip content="Settings" placement="bottom">
-            <sl-button id="settings-button" class="button">
-              <sl-icon name="gear" label="Application Preferences"></sl-icon>
-            </sl-button>
-          </sl-tooltip>
-          </sl-button-group>
-        </div>
-        <div id="background-canvas">
-          <drawing-toolbar
-            id="toolbar"
-            @lineColor-changed=${this._lineColorChanged}
-            @lineStyle-changed=${this._lineStyleChanged}
-            @lineWidth-changed=${this._lineWidthChanged}
-            @drawWithCustomizations-changed=${this._drawWithCustomizationsChanged}>
-          </drawing-toolbar>
-          <main-canvas id="main-canvas" @paths-changed="${this._pathsChanged}" @customizations-changed="${this._customizationsChanged}"></main-canvas>
-        </div>
-    </div>
-    <settings-dialog id="settings-dialog"
-      @renderingType-changed=${this._renderingTypeChanged}
-      @desynchronizedEnabled-changed=${this._desynchronizedEnabledChanged}
-      @pointerRawUpdateEnabled-changed=${this._pointerRawUpdateEnabledChanged}
-      @pressureEventsEnabled-changed=${this._pressureEventsEnabledChanged}
-      @predictedEventsEnabled-changed=${this._predictedEventsEnabledChanged}
-      @predictedEventsHighlightEnabled-changed=${this._predictedEventsHighlightEnabledChanged}
-      @predictionType-changed=${this._predictionTypeChanged}
-      @numOfPredictionPoints-changed=${this._numOfPredictionPointsChanged}
-      @coalescedEventsEnabled-changed=${this._coalescedEventsEnabledChanged}
-      @drawPointsOnlyEnabled-changed=${this._drawPointsOnlyEnabledChanged}></settings-dialog>
-    <info-panel id="info-panel"></info-panel>
+    <mwc-drawer id="drawer" hasHeader type="modal">
+      <span slot="title" class="header">Toolbar</span>
+      <div class="drawer-content">
+        <tiny-toolbar
+          @renderingType-changed=${this._renderingTypeChanged}
+          @desynchronizedEnabled-changed=${this._desynchronizedEnabledChanged}
+          @color-changed=${this._colorChanged}
+          @lineWidth-changed=${this._lineWidthChanged}
+          @drawWithPreferredFeatures-changed=${this._drawWithPreferredFeaturesChanged}
+          @pointerRawUpdateEnabled-changed=${this._pointerRawUpdateEnabledChanged}
+          @pressureEventsEnabled-changed=${this._pressureEventsEnabledChanged}
+          @predictedEventsEnabled-changed=${this._predictedEventsEnabledChanged}
+          @predictedEventsHighlightEnabled-changed=${this._predictedEventsHighlightEnabledChanged}
+          @predictionType-changed=${this._predictionTypeChanged}
+          @numOfPredictionPoints-changed=${this._numOfPredictionPointsChanged}
+          @coalescedEventsEnabled-changed=${this._coalescedEventsEnabledChanged}
+          @drawPointsOnlyEnabled-changed=${this._drawPointsOnlyEnabledChanged}
+          @usiInfoDialog-pressed=${this._usiInfoDialogPressed}>
+        </tiny-toolbar>
+      </div>
+      <div slot="appContent">
+        <mwc-top-app-bar>
+          <mwc-icon-button slot="navigationIcon" icon="menu"></mwc-icon-button>
+          <div slot="title">TinyCanvas</div>
+          <mwc-icon-button slot="actionItems" id="undo-button" icon="undo"></mwc-icon-button>
+          <mwc-icon-button slot="actionItems" id="redo-button" icon="redo"></mwc-icon-button>
+          <mwc-icon-button slot="actionItems" id="info-button" icon="info"></mwc-icon-button>
+          <mwc-icon-button slot="actionItems" id="delete-button" icon="delete_forever"></mwc-icon-button>
+        </mwc-top-app-bar>
+        <main-canvas id="main-canvas" @paths-changed=${this._pathsChanged}></main-canvas>
+        <info-panel id="info-panel"></info-panel>
+      </div>
+    </mwc-drawer>
     <usi-dialog id="usi-dialog"></usi-dialog>
-    <div class="alert-sw">
-      <sl-alert id="sw-alert" variant="primary" closable duration="10000">
-        <sl-icon slot="icon" name="info-circle"></sl-icon>
-        <div class="text-sw">
-          <strong>A newer version of the application is available</strong>
-        </div>
-        Please reload to update: 
-        <sl-button class="reload" size="small" @click="${this._reloadSW}">Reload</sl-button>
-      </sl-alert>
-    </div>`;
+    <mwc-snackbar id="snackbar" labelText="A newer version of the application is available.">
+    <mwc-button slot="action">RELOAD</mwc-button>
+      <mwc-icon-button icon="close" slot="dismiss"></mwc-icon-button>
+    </mwc-snackbar>`;
   }
 }
 

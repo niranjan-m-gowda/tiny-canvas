@@ -1,4 +1,4 @@
-export class DataSamples {
+class DataSamples {
   constructor(size) {
     this._elements = [];
     this._maxSize = size;
@@ -24,9 +24,4 @@ export class DataSamples {
     }, 0);
     return sum / this._elements.length;
   }
-}
-
-export function isPenCustomizationsSupported() {
-  let event = new PointerEvent('pointerdown');
-  return (typeof event.penCustomizationsDetails !== 'undefined');
 }

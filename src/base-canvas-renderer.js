@@ -7,19 +7,12 @@ export class BaseCanvasRenderer {
 
   get paths() { return this._paths; }
 
-  set currentLineColor(currentLineColor) {
-    this._currentLineColor = currentLineColor;
-    this.updateProperty('currentLineColor', currentLineColor);
+  set currentColor(currentColor) {
+    this._currentColor = currentColor;
+    this.updateProperty('currentColor', currentColor);
   }
 
-  get currentLineColor() { return this._currentLineColor; }
-
-  set currentLineStyle(currentLineStyle) {
-    this._currentLineStyle = currentLineStyle;
-    this.updateProperty('currentLineStyle', currentLineStyle);
-  }
-
-  get currentLineStyle() { return this._currentLineStyle; }
+  get currentColor() { return this._currentColor; }
 
   set currentLineWidth(currentLineWidth) {
     this._currentLineWidth = currentLineWidth;
@@ -49,12 +42,12 @@ export class BaseCanvasRenderer {
 
   get drawPredictedEvents() { return this._drawPredictedEvents; }
 
-  set drawWithCustomizations(drawWithCustomizations) {
-    this._drawWithCustomizations = drawWithCustomizations;
-    this.updateProperty('drawWithCustomizations', drawWithCustomizations);
+  set drawWithPreferredFeatures(drawWithPreferredFeatures) {
+    this._drawWithPreferredFeatures = drawWithPreferredFeatures;
+    this.updateProperty('drawWithPreferredFeatures', drawWithPreferredFeatures);
   }
 
-  get drawWithCustomizations() { return this._drawWithCustomizations; }
+  get drawWithPreferredFeatures() { return this._drawWithPreferredFeatures; }
 
   set drawWithPressure(drawWithPressure) {
     this._drawWithPressure = drawWithPressure;
@@ -89,35 +82,27 @@ export class BaseCanvasRenderer {
     this._predictionCanvas = predictionCanvas;
     this._paths = [];
     this._currentPath = null;
-    this._currentLineColor = '#000000';
-    this._currentLineStyle = 'INK';
+    this._currentColor = '#000000';
     this._currentLineWidth = 1;
     this._drawCoalescedEvents = false;
     this._drawPointsOnly = false;
     this._drawPredictedEvents = false;
-    this._drawWithCustomizations = false;
+    this._drawWithPreferredFeatures = false;
     this._drawWithPressure = false;
     this._highlightPredictedEvents = false;
     this._predictionType = 'custom';
     this._numOfPredictionPoints = 1;
   }
 
-  getCurrentLineColor(point) {
-    if (point.preferredColor && this._drawWithCustomizations)
+  getCurrentColor(point) {
+    if (point.preferredColor && this._drawWithPreferredFeatures)
       return point.preferredColor;
     else
-      return point.lineColor;
+      return point.color;
   }
 
-  getCurrentLineStyle(point) {
-    if (point.preferredStyle && this._drawWithCustomizations)
-      return point.preferredStyle;
-    else
-      return point.lineStyle;
-  }
-
-  getCurrentLineWidth(point) {
-    if (point.preferredWidth && this._drawWithCustomizations)
+  getCurrentWidth(point) {
+    if (point.preferredWidth && this._drawWithPreferredFeatures)
       return point.preferredWidth;
     else
       return point.lineWidth;
@@ -188,12 +173,10 @@ export class BaseCanvasRenderer {
     if (this._drawPredictedEvents)
       this.clearPredictionCanvas();
 
-    if (this._currentPath) {
-      this._currentPath.predictedPoints = [];
-      this._currentPath.display = true;
-      this._currentPath.rendered = true;
-      this._paths.push(this._currentPath);
-    }
+    this._currentPath.predictedPoints = [];
+    this._currentPath.display = true;
+    this._currentPath.rendered = false;
+    this._paths.push(this._currentPath);
     this._currentPath = null;
   }
 
